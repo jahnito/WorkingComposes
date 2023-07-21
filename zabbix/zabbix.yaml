@@ -1,0 +1,85 @@
+version: '3'
+
+services:
+  mysql-server:
+    image: mysql:5.7
+    container_name: mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pwd
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix_pwd
+    restart: always
+    volumes:
+      - dbdata:/var/lib/mysql
+    command: ['mysqld', '--character-set-server=utf8', '--collation-server=utf8_bin']
+
+  zabbix-server-mysql:
+    image: zabbix/zabbix-server-mysql:alpine-5.4-latest
+    container_name: zabbix-server-mysql
+    environment:
+      DB_SERVER_HOST: mysql-server
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix_pwd
+      MYSQL_ROOT_PASSWORD: root_pwd
+      ZBX_CACHESIZE: 48G
+      ZBX_STARTPINGERS: 5
+      ZBX_STARTPOLLERS: 20
+      ZBX_STARTPOLLERSUNREACHABLE: 5
+    ports:
+       - '10051:10051'
+    restart: always
+    links:
+      - mysql-server:mysql
+    depends_on:
+      - mysql-server
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-mysql:alpine-5.4-latest
+    container_name: zabbix-web-nginx-mysql
+    environment:
+      DB_SERVER_HOST: mysql-server
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix_pwd
+      MYSQL_ROOT_PASSWORD: root_pwd
+    ports:
+      - '80:8080'
+    restart: always
+    links:
+      - zabbix-server-mysql:zabbix-server
+      - mysql-server:mysql
+    depends_on:
+      - zabbix-server-mysql
+
+  zabbix-agent:
+    image: zabbix/zabbix-agent:alpine-5.4-latest
+    container_name: zabbix-agent
+    environment:
+      ZBX_SERVER_HOST: zabbix-server-mysql
+      ZBX_HOSTNAME: zabbix-agent
+    restart: always
+    links:
+      - zabbix-server-mysql:zabbix-server
+    depends_on:
+      - zabbix-server-mysql
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    environment:
+      UPLOAD_LIMIT: 2048M
+      MEMORY_LIMIT: 2048M
+      MAX_EXECUTION_TIME: 600
+      PMA_HOST: mysql-server
+    restart: always
+    ports:
+      - '8080:80'
+    links:
+      - mysql-server:mysql
+    depends_on:
+      - mysql-server
+
+volumes:
+  dbdata:
